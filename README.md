@@ -36,6 +36,9 @@ python demo.py --method direct --port /dev/ttyACM0
 ## Known Limitations
 
 ## Troubleshooting
+- If you get an error that says the serial port is unavailable or busy, you may have it open in another program, like the Arduino IDE. Be sure to close the serial port monitor before you run the demo.
+- If you get a permission denied error for the serial port on Linux, you need to chmod the directory to give read permission.
+- Sometimes the flash to the TMF882X fails silently. When this happens, you'll get nonsensical readings over the serial port. Sometimes its helpful to power off the sensor (so that it loses the firmware that has been flashed to its RAM) before trying to re-flash
 - If the above does not solve your problem, feel free to create a GitHub issue on this repository.
 
 
