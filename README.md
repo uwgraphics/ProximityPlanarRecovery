@@ -9,6 +9,8 @@ This repo contains example code for recovering planar geometry from the AMS TMF8
 
 This code is written to work with the AMS TMF8820 or TMF8821 sensor (we only use 3x3 zones, so there is no benefit from the 4x4 zone 8821). We use the [sensor breakout board from SparkFun](https://www.sparkfun.com/products/19036) along with a [SparkFun Qwiic Pro Micro](https://www.sparkfun.com/products/15795), connected via a Qwiic cable. Any breakout board and arduino compatible microcontroller should work.
 
+Before you plan to use this in your application, please see the "Known Limitations" section near the bottom of this README.
+
 # Microcontroller Setup
 1. Connect the TMF882X to your Arduino-compatible microcontroller, and connect the microcontroller to your computer
 2. Open the arduino/arduino.ino sketch in the Arduino IDE and flash it to the microcontroller. Now, if you open the Arduino serial port, you should see measurements streaming over it
@@ -17,7 +19,11 @@ This code is written to work with the AMS TMF8820 or TMF8821 sensor (we only use
 For more information on what the Arduino code does, see the README in the `arduino` folder.
 
 # Python Setup
-1. The only dependencies are NumPy and (for differentiable method) PyTorch. It is recommended that you install them through Conda. Developed using PyTorch 2.0.0 and NumPy 1.26.0
+1. If you want to use the differentiable method, you will need PyTorch. For this we recommend using a conda environment. First install PyTorch in the environment, then continue to the next step. If you will not use the differentiable method, continue to the next step without installing PyTorch.
+2. Install all other dependencies. If you are using conda, you can run the below command. These dependencies can also be installed via pip.
+```
+conda install numpy pyserial scipy
+```
 
 # Use
 1. The demo script supports two methods, "direct", which is the "peak finding - calibrated" method in the paper, and "differentiable" which is the "differentiable rendering" method in the paper.
@@ -28,6 +34,9 @@ python demo.py --method direct --port /dev/ttyACM0
 3. The parameters of the planar surface - distance, slope, azimuth, and (with differentiable method) albedo will print to console as measurements arrive.
 
 ## Known Limitations
+
+## Troubleshooting
+- If the above does not solve your problem, feel free to create a GitHub issue on this repository.
 
 
 --------

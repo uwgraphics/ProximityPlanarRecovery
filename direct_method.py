@@ -2,22 +2,14 @@
 Functions for recovering planar parameters from histograms
 """
 
-import json
-
 import numpy as np
 import scipy
 
 from util import *
 
-ZONE_SPEC_PATH = "zone_spec.json"
-with open(ZONE_SPEC_PATH, "r") as f:
-    ZONE_SPEC = json.load(f)
-
 
 def direct_method(
     hists,
-    measurements,
-    reference_hist,
     m=72.07336587889849,
     b=13.155326458933663,
     edge_fov_scale=0.9404948331338918,

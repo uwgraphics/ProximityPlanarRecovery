@@ -1,9 +1,14 @@
 import numpy as np
 from scipy.optimize import minimize
+import json
 
 DIST_TO_BIN_SLOPE = 73.484
 DIST_TO_BIN_INTERCEPT = 13.2521
 TMF882X_BIN_WIDTH = 1/DIST_TO_BIN_SLOPE 
+
+ZONE_SPEC_PATH = "zone_spec.json"
+with open(ZONE_SPEC_PATH, "r") as f:
+    ZONE_SPEC = json.load(f)
 
 def TMF882X_dist_to_bin(dist, slope=DIST_TO_BIN_SLOPE, intercept=DIST_TO_BIN_INTERCEPT):
     """Relates a physical distance to the corresponding histogram bin that distance affects

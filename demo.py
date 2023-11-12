@@ -7,6 +7,7 @@ import serial
 import numpy as np
 import argparse
 from direct_method import direct_method
+from differentiable_method import differentiable_method
 from util import angle_between_vecs
 
 TMF882X_CHANNELS = 10  # 9 zones + 1 reference histogram
@@ -128,15 +129,25 @@ def get_measurement(arduino):
     return processed_hists, processed_dists
 
 
-def main(method, arduino_port, baudrate):
+def main(method, arduino_port, baudrate, device):
     arduino = serial.Serial(port=arduino_port, baudrate=baudrate, timeout=0.1)
 
     print("Arduino port: {arduino.name}, baudrate: {arduino.baudrate}")
 
     if method == "direct":
         while True:
-            hists, dists = get_measurement(arduino)
-            a, d, _ = direct_method(hists, None, None)
+            hists, _ = get_measurement(arduino)
+            a, d, _ = direct_method(hists[1:])
+            aoi = np.rad2deg(angle_between_vecs(a, [0, 0, 1]))
+            azimuth = np.rad2deg(np.arctan2(a[1], a[0]))
+            z_dist = (d / a[2]) * 100
+            print(f"AoI: {aoi:.2f} deg, Azimuth: {azimuth:.2f} deg, Distance: {z_dist} cm")
+
+    elif method == "differentiable":
+        while True:
+            arduino.reset_input_buffer()
+            hists, _ = get_measurement(arduino)
+            a, d, _ = differentiable_method(hists[1:], hists[0], device)
             aoi = np.rad2deg(angle_between_vecs(a, [0, 0, 1]))
             azimuth = np.rad2deg(np.arctan2(a[1], a[0]))
             z_dist = (d / a[2]) * 100
@@ -160,5 +171,14 @@ if __name__ == "__main__":
         choices=["direct", "differentiable"],
         help="Method to recover planar parameters",
     )
+    parser.add_argument(
+        "--device",
+        "-d",
+        type=str,
+        required=False,
+        default="cpu",
+        choices=["cpu", "cuda"],
+        help="Torch device to run differentiable method on (defaults to cpu)",
+    )
     args = parser.parse_args()
-    main(args.method, args.port, args.baudrate)
+    main(args.method, args.port, args.baudrate, args.device)
