@@ -34,6 +34,10 @@ python demo.py --method direct --port /dev/ttyACM0
 3. The parameters of the planar surface - distance, slope, azimuth, and (with differentiable method) albedo will print to console as measurements arrive.
 
 ## Known Limitations
+- **Frame Rate**: The frame rate of data transfer between the sensor and Arduino is limited to about 3FPS because of the I2C interface used and the sub-optimal encoding used for the transient histograms. The direct method keeps up with this sensor frame rate. The differentiable method typically does not, although with some optimization (e.g. vectorization and re-using previous estimates as a starting point) we believe it could.
+- **Ambient Light**: The results in the paper show accuracy under bright indoor lights. Performance in direct sunlight will likely be lower due to the lower SNR from high ambient light rejection.
+- **Materials**: Does not work well on highly specular materials. See paper for more details.
+- **Sensor Variation**: The parameters for both the differentiable and direct method were calibrated on our sensor. We have subjectively observed some variation between sensors which may mean that performance is worse for sensors other than the one used for calibration.
 
 ## Troubleshooting
 - If you get an error that says the serial port is unavailable or busy, you may have it open in another program, like the Arduino IDE. Be sure to close the serial port monitor before you run the demo.
