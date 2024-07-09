@@ -22,7 +22,7 @@ For more information on what the Arduino code does, see the README in the `ardui
 1. If you want to use the differentiable method, you will need PyTorch. For this we recommend using a conda environment. First install PyTorch in the environment, then continue to the next step. If you will not use the differentiable method, continue to the next step without installing PyTorch.
 2. Install all other dependencies. If you are using conda, you can run the below command. These dependencies can also be installed via pip.
 ```
-conda install numpy pyserial scipy matplotlib
+conda install numpy pyserial scipy matplotlib tqdm
 ```
 
 # Use
