@@ -8,13 +8,18 @@ import numpy as np
 import argparse
 from direct_method import direct_method
 from differentiable_method import differentiable_method
-from util import angle_between_vecs
+from util import angle_between_vecs, intersect_ray_plane, rots_to_u_vec
+import matplotlib.pyplot as plt
 
 TMF882X_CHANNELS = 10  # 9 zones + 1 reference histogram
 TMF882X_BINS = 128  # bins per histogram
 TMF882X_SKIP_FIELDS = 3  # skip first 3 items in each row - histogram starts at 4th
 TMF882X_IDX_FIELD = 2  # second item in each row contains the idx field
 
+# constants for visualization
+AOI_LIMIT = 5 # above this aoi (in degrees) label turns red
+TEXT_VERTICAL_SPACING = 0.15
+TEXT_OFFSET = 0.6
 
 def process_raw_hists(buffer):
     if len(buffer) != 31:
@@ -132,30 +137,108 @@ def get_measurement(arduino):
     return processed_hists, processed_dists
 
 
-def main(method, arduino_port, baudrate, device):
+def main(method, arduino_port, baudrate, device, vis):
     arduino = serial.Serial(port=arduino_port, baudrate=baudrate, timeout=0.1)
 
     print("Arduino port: {arduino.name}, baudrate: {arduino.baudrate}")
 
-    if method == "direct":
-        while True:
+    if vis:
+        fig = plt.figure()
+        ax0 = fig.add_subplot(121, projection='3d')
+        ax1 = fig.add_subplot(122)
+        fig.set_size_inches(20, 12)
+        fig.tight_layout()
+        plt.show(block=False)
+        plt.ion()
+
+    while True:
+        if method == "direct":
             hists, _ = get_measurement(arduino)
             a, d, _ = direct_method(hists[1:])
             aoi = np.rad2deg(angle_between_vecs(a, [0, 0, 1]))
             azimuth = np.rad2deg(np.arctan2(a[1], a[0]))
             z_dist = (d / a[2]) * 100
-            print(f"AoI: {aoi:.2f} deg, Azimuth: {azimuth:.2f} deg, Distance: {z_dist} cm")
 
-    elif method == "differentiable":
-        while True:
+        elif method == "differentiable":
             arduino.reset_input_buffer()
             hists, _ = get_measurement(arduino)
             a, d, _ = differentiable_method(hists[1:], hists[0], device)
             aoi = np.rad2deg(angle_between_vecs(a, [0, 0, 1]))
             azimuth = np.rad2deg(np.arctan2(a[1], a[0]))
             z_dist = (d / a[2]) * 100
-            print(f"AoI: {aoi:.2f} deg, Azimuth: {azimuth:.2f} deg, Distance: {z_dist} cm")
 
+        print(f"AoI: {aoi:.2f} deg, Azimuth: {azimuth:.2f} deg, Distance: {z_dist} cm")
+
+        if vis:
+            ax0.cla()
+            ax0.set_xlim(-0.5, 0.5)
+            ax0.set_ylim(-0.5, 0.5)
+            ax0.set_zlim(-1.0, 0.0)
+            ax0.set_xlabel('X')
+            ax0.set_ylabel('Y')
+            ax0.set_zlabel('Z')
+            # remove axis tick labels
+            ax0.set_xticklabels([])
+            ax0.set_yticklabels([])
+            ax0.set_zticklabels([])
+            # remove axis ticks
+            # ax0.set_xticks([])
+            # ax0.set_yticks([])
+            # ax0.set_zticks([])
+            # remove entire axis frame
+            # ax0.axis('off')
+            
+            fov_angle = np.radians(40)/2
+            points = [
+                intersect_ray_plane(0, rots_to_u_vec(-fov_angle, fov_angle), a, d),
+                intersect_ray_plane(0, rots_to_u_vec(fov_angle, fov_angle), a, d),
+                intersect_ray_plane(0, rots_to_u_vec(-fov_angle, -fov_angle), a, d),
+                intersect_ray_plane(0, rots_to_u_vec(fov_angle, -fov_angle), a, d),
+            ]
+            if None not in points:
+                points = np.array([p[1] for p in points])
+                ax0.plot_surface(
+                    points[:,0].reshape(2, 2),
+                    points[:,1].reshape(2, 2),
+                    -points[:,2].reshape(2, 2), # invert z axis so it matches intuition
+                )
+
+                # plot the sensor position as a big gray dot
+                ax0.scatter([0], [0], [0], color='gray', s=100)
+
+                # plot a line from the sensor position (origin) to each corner of the FoV
+                for p in points:
+                    ax0.plot([0, p[0]], [0, p[1]], [0, -p[2]], color='gray')
+
+            ax1.cla()
+            ax1.axis('off')
+
+            aoi_color = 'red' if np.degrees(aoi) > AOI_LIMIT else 'green'
+            z_dist_color = 'gray'
+            ax1.text(
+                0.1,
+                TEXT_OFFSET,
+                f'Slope: {aoi:0.1f}°',
+                verticalalignment='bottom',
+                horizontalalignment='left',
+                transform=ax1.transAxes,
+                color='black',
+                fontsize=48,
+                bbox={'facecolor': aoi_color, 'alpha': 0.8, 'pad': 10}
+            )
+            ax1.text(
+                0.1,
+                TEXT_OFFSET - TEXT_VERTICAL_SPACING,
+                f'Distance: {z_dist:0.2f} cm',
+                verticalalignment='bottom',
+                horizontalalignment='left',
+                transform=ax1.transAxes,
+                color='black',
+                fontsize=48,
+                bbox={'facecolor': z_dist_color, 'alpha': 0.8, 'pad': 10}
+            )
+                    
+            plt.pause(0.05)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TMF882X demo")
@@ -183,5 +266,12 @@ if __name__ == "__main__":
         choices=["cpu", "cuda"],
         help="Torch device to run differentiable method on (defaults to cpu)",
     )
+    parser.add_argument(
+        "--vis",
+        "-v",
+        required=False,
+        help="Visualize output",
+        action="store_true",
+    )
     args = parser.parse_args()
-    main(args.method, args.port, args.baudrate, args.device)
+    main(args.method, args.port, args.baudrate, args.device, args.vis)

@@ -1,28 +1,32 @@
+import json
+
 import numpy as np
 from scipy.optimize import minimize
-import json
 
 DIST_TO_BIN_SLOPE = 73.484
 DIST_TO_BIN_INTERCEPT = 13.2521
-TMF882X_BIN_WIDTH = 1/DIST_TO_BIN_SLOPE 
+TMF882X_BIN_WIDTH = 1 / DIST_TO_BIN_SLOPE
 
 ZONE_SPEC_PATH = "zone_spec.json"
 with open(ZONE_SPEC_PATH, "r") as f:
     ZONE_SPEC = json.load(f)
 
+
 def TMF882X_dist_to_bin(dist, slope=DIST_TO_BIN_SLOPE, intercept=DIST_TO_BIN_INTERCEPT):
     """Relates a physical distance to the corresponding histogram bin that distance affects
     for the real world measurements of the TMF882X
     """
-    bin = int((slope*dist)+intercept) #TODO is rounding up, down, or nearest best?
+    bin = int((slope * dist) + intercept)  # TODO is rounding up, down, or nearest best?
     if bin < 0 or bin > 127:
         return None
     return bin
 
+
 def TMF882X_bin_to_dist(bin, slope=DIST_TO_BIN_SLOPE, intercept=DIST_TO_BIN_INTERCEPT):
     if bin < 0 or bin > 127:
         return None
-    return (bin-intercept)/slope
+    return (bin - intercept) / slope
+
 
 def rots_to_u_vec(x_rot, y_rot):
     """
@@ -38,27 +42,27 @@ def rots_to_u_vec(x_rot, y_rot):
     """
     # start with the u vector facing out from the camera
     u = np.array([0, 0, 1])
-    # to rotate in the positive x angular direction, you need to rotate around the y axis in a 
+    # to rotate in the positive x angular direction, you need to rotate around the y axis in a
     # negative direction
-    x_rot_mat = np.array([
-        [np.cos(x_rot), 0, np.sin(x_rot)],
-        [0, 1, 0],
-        [-np.sin(x_rot), 0, np.cos(x_rot)]
-    ])
+    x_rot_mat = np.array(
+        [[np.cos(x_rot), 0, np.sin(x_rot)], [0, 1, 0], [-np.sin(x_rot), 0, np.cos(x_rot)]]
+    )
     # to rotate in the positive y angular direction, you need to rotate around the x axis in a
     # positive direction
-    y_rot_mat = np.array([
-        [1, 0, 0],
-        [0, np.cos(-y_rot), -np.sin(-y_rot)],
-        [0, np.sin(-y_rot), np.cos(-y_rot)],
-    ])
+    y_rot_mat = np.array(
+        [
+            [1, 0, 0],
+            [0, np.cos(-y_rot), -np.sin(-y_rot)],
+            [0, np.sin(-y_rot), np.cos(-y_rot)],
+        ]
+    )
     u = x_rot_mat @ u
     u = y_rot_mat @ u
 
     return u
 
 
-def fit_plane(pts, initial_est = [0, 0, 1, 0.5]):
+def fit_plane(pts, initial_est=[0, 0, 1, 0.5]):
     """
     Fit a plane given by ax+d = 0 to a set of points
     Works by minimizing the sum over all points x of ax+d
@@ -84,25 +88,14 @@ def fit_plane(pts, initial_est = [0, 0, 1, 0.5]):
 
     def a_constraint(x):
         return np.linalg.norm(x[:3]) - 1
-    
 
     soln = minimize(
         loss_fn,
         np.array(initial_est),
         args=(pts),
-        method='slsqp',
-        constraints=[
-            {
-                'type': 'eq',
-                'fun': a_constraint
-            }
-        ],
-        bounds=[
-            (-1, 1),
-            (-1, 1),
-            (-1, 1),
-            (0, None)
-        ]
+        method="slsqp",
+        constraints=[{"type": "eq", "fun": a_constraint}],
+        bounds=[(-1, 1), (-1, 1), (-1, 1), (0, None)],
     )
 
     a = soln.x[:3]
@@ -111,14 +104,15 @@ def fit_plane(pts, initial_est = [0, 0, 1, 0.5]):
 
     return a, d, res
 
+
 def fit_plane_zdist(pts):
     """
     https://math.stackexchange.com/a/2306029
     """
     pts = np.array(pts)
-    xs = pts[:,0]
-    ys = pts[:,1]
-    zs = pts[:,2]
+    xs = pts[:, 0]
+    ys = pts[:, 1]
+    zs = pts[:, 2]
     tmp_A = []
     tmp_b = []
     for i in range(len(xs)):
@@ -144,6 +138,7 @@ def fit_plane_zdist(pts):
 
     return a, d, residual
 
+
 def angle_between_vecs(v1, v2, acute=True):
     """
     Find the angle between two vectors
@@ -155,12 +150,51 @@ def angle_between_vecs(v1, v2, acute=True):
         v2 (np.array): 3x1 vector
         acute (bool): if True, return the acute angle between the vectors. Otherwise, return the
             obtuse angle between the vectors
-    
+
     Returns:
         angle (float): angle between the vectors
     """
     angle = np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-    if (acute == True):
+    if acute == True:
         return angle
     else:
         return 2 * np.pi - angle
+
+
+def intersect_ray_plane(p, u, a, d, epsilon=1e-6):
+    """Find intersection of a ray with a plane
+    https://rosettacode.org/wiki/Find_the_intersection_of_a_line_with_a_plane#Python
+    Args:
+        p (3-tuple of floats): starting point of ray
+        u (3-tuple of floats): direction of ray
+        a (3-tuple of floats): the equation for the plane where a[0]x + a[1]y + a[2]z - d = 0.
+        d (float) the c portion of the plane equation.
+
+    Returns:
+        The distance and intersection point as a tuple, for example, with distance
+        5.2 and intersection point (8.1, 0.3, 4):
+        (5.2, (8.1, 0.3, 4)) or float('inf') if the sensor does not see the plane.
+
+    Raises:
+        ValueError: The line is undefined.
+    """
+    a = np.array(a)
+    p = np.array(p)
+    u = np.array(u)
+
+    plane_point = a * d
+
+    ndotu = a.dot(u)
+    if abs(ndotu) < epsilon:
+        return None
+
+    w = p - plane_point
+    si = -a.dot(w) / ndotu
+    Psi = w + si * u + plane_point
+
+    dist = np.linalg.norm(Psi - p)
+
+    if np.allclose((dist * u) + p, Psi):
+        return (dist, Psi)
+    else:
+        return None
