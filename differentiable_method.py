@@ -47,6 +47,7 @@ def render(
 
     # rescale the impulse response
     # first subtract the y offset and clamp any negative values
+    impulse_response = impulse_response.to(device)
     impulse_response = impulse_response - impulse_y_offset
     impulse_response = torch.clamp(impulse_response, min=0)
     # then normalize it so that the max is 1
@@ -78,7 +79,7 @@ def render(
         # create a histogram of the distances using differentiable soft hist function
         hist_max = bin_size * 128
         sigma = soft_hist_sigma * bin_size
-        hist = soft_hist(dists, size=128, vmin=0, vmax=hist_max, weights=intensities, sigma=sigma)[0]
+        hist = soft_hist(dists, size=128, vmin=0, vmax=hist_max, weights=intensities, sigma=sigma, device=device)[0]
 
         # convolve the impulse response - pad the start but cut off the end
         hist = torch.nn.functional.conv1d(
@@ -103,11 +104,11 @@ def render_rays(rays, plane_a, plane_d, specular_weight, specular_exponent, satu
     The first dimension of each input tensor is the number of rays
     """
     num_rays = rays.shape[0]
-    plane_as = plane_a.repeat(num_rays, 1)
-    plane_ds = plane_d.repeat(num_rays, 1)
+    plane_as = plane_a.repeat(num_rays, 1).to(device)
+    plane_ds = plane_d.repeat(num_rays, 1).to(device)
 
     pts = intersect_lines_planes(
-        torch.zeros(num_rays, 1),
+        torch.zeros(num_rays, 1).to(device),
         rays,
         plane_as,
         plane_ds
@@ -147,13 +148,13 @@ def apply_crosstalk(image, crosstalk_scale):
     sum_hist = torch.sum(image, dim=0)
     return image + sum_hist * crosstalk_scale
 
-def soft_hist(d, size, vmin, vmax, sigma=None, weights=None):
+def soft_hist(d, size, vmin, vmax, sigma=None, weights=None, device='cpu'):
     # For each data point, construct a gaussian centered at that data point, and sum all these
     weights = weights.flatten() if weights is not None else torch.ones_like(d)
     bin_size = (vmax - vmin) / size
     sigma = sigma if sigma is not None else bin_size / 2
 
-    centers = torch.arange(0, size) * bin_size + vmin + bin_size / 2
+    centers = torch.arange(0, size).to(device) * bin_size + vmin + bin_size / 2
 
     # d is now dimension (N, 1), centers is dimension (1, N)
     x = torch.unsqueeze(d, 0) - torch.unsqueeze(centers, 1)

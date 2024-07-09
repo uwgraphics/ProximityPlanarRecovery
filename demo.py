@@ -151,6 +151,10 @@ def main(method, arduino_port, baudrate, device, vis):
         plt.show(block=False)
         plt.ion()
 
+    if method == "differentiable":
+        import torch
+        torch.set_default_device(device)
+
     while True:
         if method == "direct":
             hists, _ = get_measurement(arduino)
